@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Инвентаризация - WMS</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
+    <style>
+        .alert {
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .inventory-table-wrap {
+            overflow-x: auto;
+            border-radius: 12px;
+            border: 2px solid #e0e0e0;
+        }
+
+        .inventory-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+        }
+
+        .inventory-table thead tr {
+            background: linear-gradient(135deg, #fb923c 0%, #f59e0b 100%);
+            color: white;
+        }
+
+        .inventory-table th {
+            padding: 14px 16px;
+            text-align: left;
+            font-size: 14px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .inventory-table tbody tr {
+            border-bottom: 1px solid #f0f0f0;
+            transition: background 0.2s;
+        }
+
+        .inventory-table tbody tr:hover {
+            background: #fff8f0;
+        }
+
+        .inventory-table td {
+            padding: 12px 16px;
+            font-size: 14px;
+            color: #333;
+            vertical-align: middle;
+        }
+
+        .inventory-table td.system-qty {
+            font-weight: 600;
+            color: #555;
+        }
+
+        .actual-input {
+            width: 90px;
+            padding: 8px 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            text-align: center;
+            transition: border-color 0.2s, background 0.2s;
+        }
+
+        .actual-input:focus {
+            outline: none;
+            border-color: #fb923c;
+            box-shadow: 0 0 0 3px rgba(251, 146, 60, 0.15);
+        }
+
+        .actual-input.diff-plus {
+            border-color: #4caf50;
+            background: #f1fff3;
+        }
+
+        .actual-input.diff-minus {
+            border-color: #f44336;
+            background: #fff5f5;
+        }
+
+        .diff-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        .diff-zero  { background: #f0f0f0; color: #888; }
+        .diff-pos   { background: #e8f5e9; color: #2e7d32; }
+        .diff-neg   { background: #ffebee; color: #c62828; }
+
+        .zone-filter-bar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            background: white;
+            border-radius: 12px;
+            padding: 16px 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .zone-filter-bar label {
+            font-weight: 600;
+            color: #555;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        .zone-filter-bar select {
+            padding: 9px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            flex: 1;
+            min-width: 180px;
+        }
+
+        .zone-filter-bar select:focus {
+            outline: none;
+            border-color: #fb923c;
+        }
+
+        .filter-btn {
+            padding: 9px 20px;
+            background: linear-gradient(135deg, #fb923c 0%, #f59e0b 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .filter-btn:hover { opacity: 0.9; }
+
+        .summary-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .summary-card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+
+        .summary-card .s-val {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .summary-card .s-label {
+            font-size: 13px;
+            color: #888;
+        }
+
+        .s-val.total  { color: #333; }
+        .s-val.ok     { color: #4caf50; }
+        .s-val.diff   { color: #f44336; }
+        .s-val.plus   { color: #2196f3; }
+
+        .search-box {
+            padding: 10px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            width: 260px;
+            transition: border-color 0.2s;
+        }
+        .search-box:focus {
+            outline: none;
+            border-color: #fb923c;
+        }
+
+        .table-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .btn-reset-all {
+            padding: 9px 18px;
+            background: #f0f0f0;
+            color: #555;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-reset-all:hover { background: #e0e0e0; }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <nav class="navbar">
+            <div class="navbar-content">
+                <div class="navbar-brand">
+                    <div class="logo-small">📦</div>
+                    <div>
+                        <h2>WMS</h2>
+                        <p class="subtitle">Warehouse Management</p>
+                    </div>
+                </div>
+                <div class="navbar-user">
+                    <div class="user-info">
+                        <div class="user-name">{{ user.name }}</div>
+                        <div class="user-role">{{ user.role }}</div>
+                    </div>
+                    {% if user.avatar %}
+                    <a href="/profile" style="text-decoration: none;">
+                        <img src="{{ user.avatar }}" alt="Avatar" style="width:50px;height:50px;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+                    </a>
+                    {% else %}
+                    <a href="/profile" class="user-avatar">{{ user.initials }}</a>
+                    {% endif %}
+                    <a href="/logout" class="logout-btn">Выход</a>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container">
+            <a href="/dashboard?tab=actions" class="back-btn">← Назад к панели управления</a>
+
+            <div class="page-header">
+                <h1>📋 Инвентаризация</h1>
+                <p>Проверка и корректировка фактических остатков товаров</p>
+            </div>
+
+            {% if success %}
+            <div class="alert alert-success">✓ {{ success }}</div>
+            {% endif %}
+            {% if error %}
+            <div class="alert alert-error">✗ {{ error }}</div>
+            {% endif %}
+
+            {% if not products %}
+            <div style="text-align:center;padding:60px;background:white;border-radius:16px;box-shadow:0 2px 10px rgba(0,0,0,0.05);">
+                <div style="font-size:64px;margin-bottom:16px;">📦</div>
+                <h3 style="color:#333;margin-bottom:8px;">Нет товаров для инвентаризации</h3>
+                <p style="color:#888;">Сначала оформите приёмку товара.</p>
+            </div>
+            {% else %}
+
+            <form action="/inventory/create" method="POST" id="inventory-form">
+                <!-- Основная информация -->
+                <div class="form-card" style="margin-bottom:20px;">
+                    <h3 style="font-size:18px;margin-bottom:16px;color:#333;">Основная информация</h3>
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label>Номер инвентаризации</label>
+                            <input type="text" name="operation_number" value="{{ next_number }}" readonly style="background:#f0f0f0;">
+                        </div>
+                        <div class="form-field">
+                            <label>Дата проведения</label>
+                            <input type="date" name="operation_date" value="{{ today }}" required>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label>Примечания</label>
+                            <textarea name="notes" rows="2" placeholder="Дополнительная информация..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Фильтр по зоне -->
+                <div class="zone-filter-bar">
+                    <label>🗂 Фильтр по зоне:</label>
+                    <select id="zone-select" name="zone_filter" onchange="filterByZone()">
+                        <option value="">Все зоны</option>
+                        {% for zone in zones %}
+                        <option value="{{ zone.name }}">{{ zone.name }} ({{ zone.code }})</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" class="filter-btn" onclick="filterByZone()">Применить</button>
+                </div>
+
+                <!-- Сводка -->
+                <div class="summary-bar">
+                    <div class="summary-card">
+                        <div class="s-val total" id="sum-total">{{ products|length }}</div>
+                        <div class="s-label">Всего позиций</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="s-val ok" id="sum-ok">0</div>
+                        <div class="s-label">Совпадений</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="s-val diff" id="sum-diff">0</div>
+                        <div class="s-label">Расхождений</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="s-val plus" id="sum-visible">{{ products|length }}</div>
+                        <div class="s-label">Показано позиций</div>
+                    </div>
+                </div>
+
+                <!-- Таблица -->
+                <div style="background:white;border-radius:16px;padding:24px;box-shadow:0 2px 10px rgba(0,0,0,0.05);">
+                    <div class="table-toolbar">
+                        <input type="text" class="search-box" placeholder="🔍 Поиск по названию или артикулу..." oninput="searchProducts(this.value)">
+                        <button type="button" class="btn-reset-all" onclick="resetAll()">↺ Сбросить все значения</button>
+                    </div>
+
+                    <div class="inventory-table-wrap">
+                        <table class="inventory-table" id="inv-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>Артикул</th>
+                                    <th>Наименование</th>
+                                    <th>Зона</th>
+                                    <th>По системе</th>
+                                    <th>Фактически</th>
+                                    <th>Расхождение</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inv-tbody">
+                                {% for product in products %}
+                                <tr class="inv-row" data-zone="{{ product.zone.name if product.zone else '' }}" data-name="{{ product.name|lower }}" data-article="{{ product.article|lower }}">
+                                    <td style="color:#999;font-size:13px;">{{ loop.index }}</td>
+                                    <td><code style="background:#f5f5f5;padding:3px 8px;border-radius:4px;font-size:13px;">{{ product.article }}</code></td>
+                                    <td>
+                                        <div style="font-weight:600;">{{ product.name }}</div>
+                                        <div style="font-size:12px;color:#888;">{{ product.category.name if product.category else '—' }}</div>
+                                        <input type="hidden" name="products[{{ loop.index0 }}][product_id]" value="{{ product.id }}">
+                                    </td>
+                                    <td>
+                                        <span style="background:#f0f0f0;padding:3px 10px;border-radius:6px;font-size:13px;">
+                                            {{ product.zone.name if product.zone else '—' }}
+                                        </span>
+                                    </td>
+                                    <td class="system-qty">{{ product.quantity }} {{ product.unit }}</td>
+                                    <td>
+                                        <input
+                                            type="number"
+                                            class="actual-input"
+                                            name="products[{{ loop.index0 }}][actual_quantity]"
+                                            value="{{ product.quantity }}"
+                                            min="0"
+                                            data-system="{{ product.quantity }}"
+                                            oninput="updateDiff(this, {{ loop.index0 }})"
+                                        >
+                                    </td>
+                                    <td>
+                                        <span class="diff-badge diff-zero" id="diff-{{ loop.index0 }}">0</span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div style="margin-top:24px;display:flex;gap:12px;justify-content:flex-end;">
+                        <a href="/dashboard?tab=actions" style="padding:14px 28px;background:#f0f0f0;color:#555;border-radius:10px;font-weight:600;text-decoration:none;font-size:15px;">
+                            Отмена
+                        </a>
+                        <button type="submit" class="submit-btn" style="background:linear-gradient(135deg,#fb923c 0%,#f59e0b 100%);width:auto;padding:14px 36px;">
+                            ✓ Сохранить инвентаризацию
+                        </button>
+                    </div>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        // Обновление расхождения при изменении фактического количества
+        function updateDiff(input, idx) {
+            const system = parseInt(input.getAttribute('data-system')) || 0;
+            const actual = parseInt(input.value) || 0;
+            const diff = actual - system;
+            const badge = document.getElementById('diff-' + idx);
+
+            if (diff === 0) {
+                badge.textContent = '0';
+                badge.className = 'diff-badge diff-zero';
+                input.className = 'actual-input';
+            } else if (diff > 0) {
+                badge.textContent = '+' + diff;
+                badge.className = 'diff-badge diff-pos';
+                input.className = 'actual-input diff-plus';
+            } else {
+                badge.textContent = diff;
+                badge.className = 'diff-badge diff-neg';
+                input.className = 'actual-input diff-minus';
+            }
+
+            recalcSummary();
+        }
+
+        // Пересчёт сводки
+        function recalcSummary() {
+            const rows = document.querySelectorAll('.inv-row:not([style*="display: none"])');
+            let ok = 0, diff = 0;
+            rows.forEach(row => {
+                const inp = row.querySelector('.actual-input');
+                const sys = parseInt(inp.getAttribute('data-system')) || 0;
+                const act = parseInt(inp.value) || 0;
+                if (sys === act) ok++; else diff++;
+            });
+            document.getElementById('sum-ok').textContent = ok;
+            document.getElementById('sum-diff').textContent = diff;
+            document.getElementById('sum-visible').textContent = rows.length;
+        }
+
+        // Фильтр по зоне
+        function filterByZone() {
+            const zone = document.getElementById('zone-select').value.toLowerCase();
+            document.querySelectorAll('.inv-row').forEach(row => {
+                const rowZone = (row.getAttribute('data-zone') || '').toLowerCase();
+                row.style.display = (!zone || rowZone.includes(zone)) ? '' : 'none';
+            });
+            recalcSummary();
+        }
+
+        // Поиск по названию/артикулу
+        function searchProducts(q) {
+            const query = q.toLowerCase();
+            document.querySelectorAll('.inv-row').forEach(row => {
+                const name = row.getAttribute('data-name') || '';
+                const art = row.getAttribute('data-article') || '';
+                row.style.display = (name.includes(query) || art.includes(query)) ? '' : 'none';
+            });
+            recalcSummary();
+        }
+
+        // Сброс всех фактических значений к системным
+        function resetAll() {
+            if (!confirm('Сбросить все фактические значения к системным?')) return;
+            document.querySelectorAll('.actual-input').forEach((inp, idx) => {
+                inp.value = inp.getAttribute('data-system');
+                updateDiff(inp, idx);
+            });
+        }
+
+        // Инициализация сводки
+        recalcSummary();
+    </script>
+</body>
+</html>

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Детали операции - WMS</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
+    <style>
+        .status-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .status-btn:hover { opacity: 0.85; transform: translateY(-1px); }
+        .status-btn.pending  { background: #fff3e0; color: #e65100; border: 1.5px solid #ffcc80; }
+        .status-btn.processing { background: #e3f2fd; color: #1565c0; border: 1.5px solid #90caf9; }
+        .status-btn.completed { background: #e8f5e9; color: #2e7d32; border: 1.5px solid #a5d6a7; }
+        .status-btn.cancelled { background: #fce4ec; color: #880e4f; border: 1.5px solid #f48fb1; }
+        .status-btn.active-status { box-shadow: 0 0 0 3px currentColor; }
+        .alert { padding:15px 20px;border-radius:12px;margin-bottom:20px;font-weight:500; }
+        .alert-success { background:#d4edda;color:#155724;border:1px solid #c3e6cb; }
+        .alert-error { background:#f8d7da;color:#721c24;border:1px solid #f5c6cb; }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <nav class="navbar">
+            <div class="navbar-content">
+                <div class="navbar-brand">
+                    <div class="logo-small">📦</div>
+                    <div>
+                        <h2>WMS</h2>
+                        <p class="subtitle">Warehouse Management</p>
+                    </div>
+                </div>
+
+               <div class="navbar-user">
+                    <div class="user-info">
+                        <div class="user-name">{{ user.name }}</div>
+                        <div class="user-role">{{ user.role }}</div>
+                    </div>
+                    {% if user.avatar %}
+                    <a href="/profile" style="text-decoration: none;">
+                        <img src="{{ user.avatar }}" alt="Avatar" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    </a>
+                    {% else %}
+                    <a href="/profile" class="user-avatar">{{ user.initials }}</a>
+                    {% endif %}
+                    <a href="/logout" class="logout-btn">Выход</a>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container">
+            <a href="/dashboard?tab=operations" class="back-btn">← Назад к операциям</a>
+
+            {% if success %}
+            <div class="alert alert-success">✓ {{ success }}</div>
+            {% endif %}
+            {% if error %}
+            <div class="alert alert-error">✗ {{ error }}</div>
+            {% endif %}
+
+            <div class="page-header">
+                <h1>{{ operation.type }} #{{ operation.number }}</h1>
+                <span class="status-badge {{ operation.status.status }}" style="display: inline-block; margin-top: 10px;">
+                    {{ operation.status.text }}
+                </span>
+            </div>
+
+            <!-- ── Status management ── -->
+            {% if operation.can_manage %}
+            <div class="form-card" style="margin-bottom:24px;padding:20px 28px;">
+                <h3 style="font-size:16px;margin-bottom:14px;color:#555;">
+                    🔧 Управление статусом
+                    {% if not user.is_admin %}
+                    <span style="font-size:12px;color:#aaa;font-weight:400;"> (вы создали эту операцию)</span>
+                    {% else %}
+                    <span style="font-size:12px;color:#aaa;font-weight:400;"> (администратор)</span>
+                    {% endif %}
+                </h3>
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <form method="POST" action="/operations/details/{{ operation.id }}/status" style="display:inline;">
+                        <input type="hidden" name="new_status" value="pending">
+                        <button type="submit" class="status-btn pending {% if operation.raw_status == 'pending' %}active-status{% endif %}">⏳ Ожидает</button>
+                    </form>
+                    <form method="POST" action="/operations/details/{{ operation.id }}/status" style="display:inline;">
+                        <input type="hidden" name="new_status" value="processing">
+                        <button type="submit" class="status-btn processing {% if operation.raw_status == 'processing' %}active-status{% endif %}">🔄 В процессе</button>
+                    </form>
+                    <form method="POST" action="/operations/details/{{ operation.id }}/status" style="display:inline;">
+                        <input type="hidden" name="new_status" value="completed">
+                        <button type="submit" class="status-btn completed {% if operation.raw_status == 'completed' %}active-status{% endif %}">✅ Завершить</button>
+                    </form>
+                    <form method="POST" action="/operations/details/{{ operation.id }}/status" style="display:inline;">
+                        <input type="hidden" name="new_status" value="cancelled">
+                        <button type="submit" class="status-btn cancelled {% if operation.raw_status == 'cancelled' %}active-status{% endif %}">✗ Отменить</button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="form-card">
+                <h3 style="font-size: 20px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #f0f0f0;">
+                    Информация об операции
+                </h3>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                    <div>
+                        <label style="font-size: 12px; color: #888; display: block; margin-bottom: 5px;">Номер операции</label>
+                        <p style="font-weight: 600; margin: 0;">{{ operation.number }}</p>
+                    </div>
+                    <div>
+                        <label style="font-size: 12px; color: #888; display: block; margin-bottom: 5px;">Тип операции</label>
+                        <p style="font-weight: 600; margin: 0;">{{ operation.type }}</p>
+                    </div>
+                    <div>
+                        <label style="font-size: 12px; color: #888; display: block; margin-bottom: 5px;">Статус</label>
+                        <p style="font-weight: 600; margin: 0;">{{ operation.status.text }}</p>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px;">
+                    <div>
+                        <label style="font-size: 12px; color: #888; display: block; margin-bottom: 5px;">Поставщик / Заказчик</label>
+                        <p style="font-weight: 600; margin: 0;">{{ operation.supplier_customer }}</p>
+                    </div>
+                    <div>
+                        <label style="font-size: 12px; color: #888; display: block; margin-bottom: 5px;">Дата операции</label>
+                        <p style="font-weight: 600; margin: 0;">{{ operation.date }}</p>
+                    </div>
+                    <div>
+                        <label style="font-size: 12px; color: #888; display: block; margin-bottom: 5px;">Ответственный</label>
+                        <p style="font-weight: 600; margin: 0;">{{ operation.user_name }}</p>
+                    </div>
+                </div>
+
+                <div style="margin-bottom: 30px;">
+                    <label style="font-size: 12px; color: #888; display: block; margin-bottom: 5px;">Примечания</label>
+                    <p style="margin: 0;">{{ operation.notes }}</p>
+                </div>
+
+                {% if items %}
+                <h3 style="font-size: 20px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #f0f0f0;">
+                    Товары в операции
+                </h3>
+
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #f8f9fa;">
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #e0e0e0;">Товар</th>
+                            <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e0e0e0;">Количество</th>
+                            <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e0e0e0;">Цена</th>
+                            <th style="padding: 12px; text-align: right; border-bottom: 2px solid #e0e0e0;">Сумма</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                        <tr style="border-bottom: 1px solid #f0f0f0;">
+                            <td style="padding: 12px;">{{ item.product_name }}</td>
+                            <td style="padding: 12px; text-align: right;">{{ item.quantity }}</td>
+                            <td style="padding: 12px; text-align: right;">{{ "%.2f"|format(item.price) }} ₽</td>
+                            <td style="padding: 12px; text-align: right; font-weight: 600;">{{ "%.2f"|format(item.total) }} ₽</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr style="background: #f8f9fa; font-weight: 600;">
+                            <td colspan="3" style="padding: 12px; text-align: right; border-top: 2px solid #e0e0e0;">ИТОГО:</td>
+                            <td style="padding: 12px; text-align: right; border-top: 2px solid #e0e0e0;">{{ "%.2f"|format(operation.total_amount) }} ₽</td>
+                        </tr>
+                    </tfoot>
+                </table>
+                {% else %}
+                <div style="text-align: center; padding: 40px; background: #f8f9fa; border-radius: 12px;">
+                    <p style="color: #888; margin: 0;">В этой операции нет товаров</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

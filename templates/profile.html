@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Профиль - WMS</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
+    <style>
+        .avatar-upload {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            margin: 0 auto 20px;
+        }
+
+        .avatar-preview {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid #fff;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .avatar-placeholder {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 48px;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .avatar-upload-btn {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .avatar-upload-btn:hover {
+            background: #5568d3;
+        }
+
+        #avatar-input {
+            display: none;
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .delete-avatar-btn {
+            background: #ff4757;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+
+        .delete-avatar-btn:hover {
+            background: #e63946;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <nav class="navbar">
+            <div class="navbar-content">
+                <div class="navbar-brand">
+                    <div class="logo-small">📦</div>
+                    <div>
+                        <h2>WMS</h2>
+                        <p class="subtitle">Warehouse Management</p>
+                    </div>
+                </div>
+
+                <div class="navbar-user">
+                    <div class="user-info">
+                        <div class="user-name">{{ user.name }}</div>
+                        <div class="user-role">{{ user.role }}</div>
+                    </div>
+                    {% if user.avatar %}
+                    <a href="/profile" style="text-decoration: none;">
+                        <img src="{{ user.avatar }}" alt="Avatar" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    </a>
+                    {% else %}
+                    <a href="/profile" class="user-avatar">{{ user.initials }}</a>
+                    {% endif %}
+                    <a href="/logout" class="logout-btn">Выход</a>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container">
+            <a href="/dashboard" class="back-btn">← Назад к панели управления</a>
+
+            <div class="page-header">
+                <h1>Профиль пользователя</h1>
+                <p>Управление личными данными и настройками</p>
+            </div>
+
+            {% if success %}
+            <div class="alert alert-success">
+                ✓ {{ success }}
+            </div>
+            {% endif %}
+
+            {% if error %}
+            <div class="alert alert-error">
+                ✗ {{ error }}
+            </div>
+            {% endif %}
+
+            <div class="form-card">
+                <form action="/profile/update" method="POST" enctype="multipart/form-data">
+                    <div class="avatar-upload">
+                        {% if user.avatar %}
+                        <img src="{{ user.avatar }}" alt="Avatar" class="avatar-preview" id="avatar-preview">
+                        {% else %}
+                        <div class="avatar-placeholder" id="avatar-placeholder">{{ user.initials }}</div>
+                        {% endif %}
+
+                        <button type="button" class="avatar-upload-btn" onclick="document.getElementById('avatar-input').click()">
+                            📷
+                        </button>
+                        <input type="file" id="avatar-input" name="avatar" accept="image/*" onchange="previewAvatar(event)">
+                    </div>
+
+                    {% if user.avatar %}
+                    <div style="text-align: center;">
+                        <button type="button" class="delete-avatar-btn" onclick="deleteAvatar()">
+                            Удалить аватарку
+                        </button>
+                    </div>
+                    {% endif %}
+
+                    <div style="height: 30px;"></div>
+
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label>Полное имя</label>
+                            <input type="text" name="full_name" value="{{ user.name }}" required>
+                        </div>
+                        <div class="form-field">
+                            <label>ID сотрудника</label>
+                            <input type="text" value="{{ user.employee_id }}" disabled style="background: #f0f0f0;">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label>Email</label>
+                            <input type="email" name="email" value="{{ user.email }}" required>
+                        </div>
+                        <div class="form-field">
+                            <label>Телефон</label>
+                            <input type="text" name="phone" value="{{ user.phone }}" placeholder="+7 (999) 123-45-67">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label>Роль</label>
+                            <input type="text" value="{{ user.role }}" disabled style="background: #f0f0f0;">
+                        </div>
+                        <div class="form-field">
+                            <label>Дата начала работы</label>
+                            <input type="text" value="{{ user.start_date }}" disabled style="background: #f0f0f0;">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="submit-btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                        💾 Сохранить изменения
+                    </button>
+                </form>
+            </div>
+
+            <div style="margin-top: 30px;">
+                <h2 style="font-size: 24px; margin-bottom: 20px;">Статистика работы</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon green">✓</div>
+                        <div class="stat-value">{{ user.total_operations }}</div>
+                        <div class="stat-label">Всего операций</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon blue">📊</div>
+                        <div class="stat-value">{{ user.completed_operations }}</div>
+                        <div class="stat-label">Завершено</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon purple">🎯</div>
+                        <div class="stat-value">{{ user.accuracy }}%</div>
+                        <div class="stat-label">Точность</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function previewAvatar(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const placeholder = document.getElementById('avatar-placeholder');
+                    const preview = document.getElementById('avatar-preview');
+
+                    if (placeholder) {
+                        const img = document.createElement('img');
+                        img.src = e.target.result;
+                        img.className = 'avatar-preview';
+                        img.id = 'avatar-preview';
+                        placeholder.parentNode.replaceChild(img, placeholder);
+                    } else if (preview) {
+                        preview.src = e.target.result;
+                    }
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function deleteAvatar() {
+            if (confirm('Удалить аватарку?')) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/profile/delete-avatar';
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+    </script>
+</body>
+</html>

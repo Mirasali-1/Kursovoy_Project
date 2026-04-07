@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Отгрузка товара - WMS</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
+    <style>
+        .alert {
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .product-item {
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+        }
+
+        .product-item h4 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        .remove-product-btn {
+            background: #ff4757;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .remove-product-btn:hover {
+            background: #e63946;
+        }
+
+        .add-product-btn {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .add-product-btn:hover {
+            background: #357ae8;
+        }
+
+        .stock-info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .stock-warning {
+            color: #ff9800;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Navbar -->
+        <nav class="navbar">
+            <div class="navbar-content">
+                <div class="navbar-brand">
+                    <div class="logo-small">📦</div>
+                    <div>
+                        <h2>WMS</h2>
+                        <p class="subtitle">Warehouse Management</p>
+                    </div>
+                </div>
+
+                <div class="navbar-user">
+                    <div class="user-info">
+                        <div class="user-name">{{ user.name }}</div>
+                        <div class="user-role">{{ user.role }}</div>
+                    </div>
+                    {% if user.avatar %}
+                    <a href="/profile" style="text-decoration: none;">
+                        <img src="{{ user.avatar }}" alt="Avatar" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                    </a>
+                    {% else %}
+                    <a href="/profile" class="user-avatar">{{ user.initials }}</a>
+                    {% endif %}
+                    <a href="/logout" class="logout-btn">Выход</a>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container">
+            <a href="/dashboard?tab=actions" class="back-btn">← Назад к панели управления</a>
+
+            <div class="page-header">
+                <h1>📤 Отгрузка товара</h1>
+                <p>Оформление отправки товара со склада</p>
+            </div>
+
+            <!-- Alerts -->
+            {% if success %}
+            <div class="alert alert-success">
+                ✓ {{ success }}
+            </div>
+            {% endif %}
+
+            {% if error %}
+            <div class="alert alert-error">
+                ✗ {{ error }}
+            </div>
+            {% endif %}
+
+            <!-- Form -->
+            <div class="form-card">
+                <form action="/shipment/create" method="POST" id="shipment-form">
+                    <h3 style="font-size: 20px; margin-bottom: 20px; color: #333;">Основная информация</h3>
+
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label>Номер заказа</label>
+                            <input type="text" name="operation_number" value="{{ next_number }}" readonly style="background: #f0f0f0;">
+                        </div>
+                        <div class="form-field">
+                            <label>Дата отгрузки</label>
+                            <input type="date" name="operation_date" value="{{ today }}" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label>Заказчик</label>
+                            <select name="customer" required>
+                                <option value="">Выберите заказчика</option>
+                                {% for customer in customers %}
+                                <option value="{{ customer.name }}">
+                                    {{ customer.name }}{% if customer.contact_person %} ({{ customer.contact_person }}){% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label>Адрес доставки</label>
+                            <input type="text" name="delivery_address" placeholder="Город, улица, дом" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-field">
+                            <label>Примечания</label>
+                            <textarea name="notes" rows="3" placeholder="Особые указания по доставке..."></textarea>
+                        </div>
+                    </div>
+
+                    <hr style="margin: 30px 0; border: none; border-top: 2px solid #e0e0e0;">
+
+                    <h3 style="font-size: 20px; margin-bottom: 20px; color: #333;">Товары к отгрузке</h3>
+
+                    <div id="products-container">
+                        <!-- Первый товар -->
+                        <div class="product-item">
+                            <h4>Товар #1</h4>
+                            <div class="form-row">
+                                <div class="form-field">
+                                    <label>Товар</label>
+                                    <select name="products[0][product_id]" onchange="updateStock(this, 0)" required>
+                                        <option value="">Выберите товар</option>
+                                        {% for product in products %}
+                                        <option value="{{ product.id }}" data-stock="{{ product.quantity }}" data-price="{{ product.price }}">
+                                            {{ product.name }} ({{ product.article }}) - На складе: {{ product.quantity }} {{ product.unit }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="stock-info" id="stock-info-0"></div>
+                                </div>
+                                <div class="form-field">
+                                    <label>Количество</label>
+                                    <input type="number" name="products[0][quantity]" id="quantity-0" min="1" placeholder="0" onchange="validateStock(0)" required>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-field">
+                                    <label>Цена за единицу (₽)</label>
+                                    <input type="number" name="products[0][price]" id="price-0" step="0.01" min="0" placeholder="0.00" required>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="button" class="add-product-btn" onclick="addProduct()">
+                        ➕ Добавить товар
+                    </button>
+
+                    <button type="submit" class="submit-btn" style="background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);">
+                        ✓ Оформить отгрузку
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let productCount = 1;
+
+        function updateStock(select, index) {
+            const option = select.options[select.selectedIndex];
+            const stock = option.getAttribute('data-stock');
+            const price = option.getAttribute('data-price');
+            const stockInfo = document.getElementById('stock-info-' + index);
+            const priceInput = document.getElementById('price-' + index);
+
+            if (stock && stockInfo) {
+                stockInfo.textContent = 'Доступно на складе: ' + stock + ' шт';
+                stockInfo.setAttribute('data-stock', stock);
+            }
+
+            if (price && priceInput) {
+                priceInput.value = price;
+            }
+        }
+
+        function validateStock(index) {
+            const quantityInput = document.getElementById('quantity-' + index);
+            const stockInfo = document.getElementById('stock-info-' + index);
+            const stock = stockInfo ? stockInfo.getAttribute('data-stock') : 0;
+
+            if (parseInt(quantityInput.value) > parseInt(stock)) {
+                quantityInput.value = stock;
+                alert('Недостаточно товара на складе! Максимум: ' + stock);
+            }
+        }
+
+        function addProduct() {
+            const container = document.getElementById('products-container');
+            const newProduct = document.createElement('div');
+            newProduct.className = 'product-item';
+            newProduct.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h4>Товар #${productCount + 1}</h4>
+                    <button type="button" class="remove-product-btn" onclick="removeProduct(this)">
+                        ✗ Удалить
+                    </button>
+                </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label>Товар</label>
+                        <select name="products[${productCount}][product_id]" onchange="updateStock(this, ${productCount})" required>
+                            <option value="">Выберите товар</option>
+                            {% for product in products %}
+                            <option value="{{ product.id }}" data-stock="{{ product.quantity }}" data-price="{{ product.price }}">
+                                {{ product.name }} ({{ product.article }}) - На складе: {{ product.quantity }} {{ product.unit }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="stock-info" id="stock-info-${productCount}"></div>
+                    </div>
+                    <div class="form-field">
+                        <label>Количество</label>
+                        <input type="number" name="products[${productCount}][quantity]" id="quantity-${productCount}" min="1" placeholder="0" onchange="validateStock(${productCount})" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-field">
+                        <label>Цена за единицу (₽)</label>
+                        <input type="number" name="products[${productCount}][price]" id="price-${productCount}" step="0.01" min="0" placeholder="0.00" required>
+                    </div>
+                </div>
+            `;
+            container.appendChild(newProduct);
+            productCount++;
+        }
+
+        function removeProduct(btn) {
+            btn.closest('.product-item').remove();
+        }
+    </script>
+</body>
+</html>

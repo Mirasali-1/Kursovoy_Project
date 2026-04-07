@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель управления - WMS</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/style.css') }}">
+    <style>
+        .status-controls {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+        .status-btn {
+            padding: 5px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .status-btn:hover { opacity: 0.85; transform: translateY(-1px); }
+        .status-btn.pending  { background: #fff3e0; color: #e65100; border: 1px solid #ffcc80; }
+        .status-btn.processing { background: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
+        .status-btn.completed { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+        .status-btn.cancelled { background: #fce4ec; color: #880e4f; border: 1px solid #f48fb1; }
+        .status-btn.active-status { box-shadow: 0 0 0 2px currentColor; }
+
+        .ops-summary-bar {
+            display: flex;
+            gap: 16px;
+            background: white;
+            border-radius: 12px;
+            padding: 14px 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .ops-summary-bar .ops-num {
+            font-size: 22px;
+            font-weight: 700;
+            color: #333;
+        }
+        .ops-summary-bar .ops-label {
+            font-size: 13px;
+            color: #888;
+        }
+        .ops-summary-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0 16px;
+            border-right: 1px solid #eee;
+        }
+        .ops-summary-item:last-child { border-right: none; }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <nav class="navbar">
+            <div class="navbar-content">
+                <div class="navbar-brand">
+                    <div class="logo-small">📦</div>
+                    <div><h2>WMS</h2><p class="subtitle">Warehouse Management</p></div>
+                </div>
+                <div class="navbar-user">
+                    <div class="user-info">
+                        <div class="user-name">{{ user.name }}</div>
+                        <div class="user-role">{{ user.role }}</div>
+                    </div>
+                    {% if user.avatar %}
+                    <a href="/profile" style="text-decoration:none;">
+                        <img src="{{ user.avatar }}" alt="Avatar" style="width:50px;height:50px;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+                    </a>
+                    {% else %}
+                    <a href="/profile" class="user-avatar">{{ user.initials }}</a>
+                    {% endif %}
+                    <a href="/logout" class="logout-btn">Выход</a>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container">
+            {% if success %}
+            <div id="success-alert" style="background:#d4edda;color:#155724;border:1px solid #c3e6cb;padding:15px 20px;border-radius:12px;margin-bottom:20px;font-weight:500;display:flex;justify-content:space-between;align-items:center;">
+                <span>✓ {{ success }}</span>
+                <button onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;font-size:20px;color:#155724;line-height:1;">×</button>
+            </div>
+            {% endif %}
+
+            <div class="page-header">
+                <h1>Панель управления</h1>
+                <p>Обзор складских операций и статистика</p>
+            </div>
+
+            <div class="dashboard-tabs">
+                <a href="/dashboard?tab=overview" class="tab-link {% if current_tab == 'overview' %}active{% endif %}">📊 Панель</a>
+                <a href="/dashboard?tab=operations" class="tab-link {% if current_tab == 'operations' %}active{% endif %}">📋 Операции</a>
+                <a href="/dashboard?tab=actions" class="tab-link {% if current_tab == 'actions' %}active{% endif %}">⚡ Быстрые действия</a>
+            </div>
+
+            {% if current_tab == 'overview' %}
+            <div class="stats-grid">
+                {% for stat in stats %}
+                <div class="stat-card">
+                    <div class="stat-icon {{ stat.color }}">{{ stat.icon }}</div>
+                    <div class="stat-value">{{ stat.value }}</div>
+                    <div class="stat-label">{{ stat.label }}</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if current_tab == 'operations' %}
+            <div class="operations-container">
+                <div class="operations-header">
+                    <h3>Все операции</h3>
+                    <div class="btn-group">
+                        <button class="btn btn-filter" onclick="toggleFilter()">🔽 Фильтр</button>
+                        <a href="/reports" class="btn btn-report">📊 Отчёты</a>
+                    </div>
+                </div>
+
+                <!-- ── Summary bar ── -->
+                <div class="ops-summary-bar">
+                    <div class="ops-summary-item">
+                        <span class="ops-num">{{ all_ops_count }}</span>
+                        <span class="ops-label">Всего операций</span>
+                    </div>
+                    <div class="ops-summary-item">
+                        <span class="ops-num" style="color:#2e7d32;">{{ all_completed_count }}</span>
+                        <span class="ops-label">Выполнено</span>
+                    </div>
+                    <div class="ops-summary-item">
+                        <span class="ops-num" style="color:#1565c0;">{{ all_ops_count - all_completed_count }}</span>
+                        <span class="ops-label">Незавершено</span>
+                    </div>
+                </div>
+
+                <div id="filter-panel" style="display:none;background:#f8f9fa;padding:20px;border-radius:12px;margin-bottom:20px;">
+                    <form method="GET" action="/dashboard">
+                        <input type="hidden" name="tab" value="operations">
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;align-items:end;">
+                            <div>
+                                <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Тип операции</label>
+                                <select name="operation_type" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;">
+                                    <option value="all" {% if operation_type =='all' %}selected{% endif %}>Все типы</option>
+                                    <option value="acceptance" {% if operation_type =='acceptance' %}selected{% endif %}>Приемка</option>
+                                    <option value="shipment" {% if operation_type =='shipment' %}selected{% endif %}>Отгрузка</option>
+                                    <option value="movement" {% if operation_type =='movement' %}selected{% endif %}>Перемещение</option>
+                                    <option value="inventory" {% if operation_type =='inventory' %}selected{% endif %}>Инвентаризация</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display:block;font-weight:600;margin-bottom:8px;font-size:14px;">Статус</label>
+                                <select name="status" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;">
+                                    <option value="all" {% if status =='all' %}selected{% endif %}>Все статусы</option>
+                                    <option value="completed" {% if status =='completed' %}selected{% endif %}>Завершено</option>
+                                    <option value="processing" {% if status =='processing' %}selected{% endif %}>В процессе</option>
+                                    <option value="pending" {% if status =='pending' %}selected{% endif %}>Ожидает</option>
+                                </select>
+                            </div>
+                            <div>
+                                <button type="submit" class="btn" style="background:#667eea;color:white;width:100%;padding:11px;">Применить</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                {% if operations %}
+                    {% for op in operations %}
+                    <div class="operation-item" style="flex-direction:column;align-items:stretch;gap:10px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                            <div class="operation-info">
+                                <h4>{{ op.title }} <span style="color:#999;font-weight:400;font-size:14px;">#{{ op.id }}</span></h4>
+                                <p>{{ op.desc }}</p>
+                            </div>
+                            <div class="operation-actions">
+                                <span class="status-badge {{ op.status }}">{{ op.status_text }}</span>
+                                <a href="/operations/details/{{ op.db_id }}" class="details-link">Подробнее →</a>
+                            </div>
+                        </div>
+                        {% if op.can_manage %}
+                        <div style="padding-top:4px;border-top:1px solid #f0f0f0;">
+                            <span style="font-size:12px;color:#aaa;margin-right:8px;">Изменить статус:</span>
+                            <div class="status-controls">
+                                <form method="POST" action="/operations/{{ op.db_id }}/status" style="display:inline;">
+                                    <input type="hidden" name="new_status" value="pending">
+                                    <button type="submit" class="status-btn pending {% if op.raw_status == 'pending' %}active-status{% endif %}">⏳ Ожидает</button>
+                                </form>
+                                <form method="POST" action="/operations/{{ op.db_id }}/status" style="display:inline;">
+                                    <input type="hidden" name="new_status" value="processing">
+                                    <button type="submit" class="status-btn processing {% if op.raw_status == 'processing' %}active-status{% endif %}">🔄 В процессе</button>
+                                </form>
+                                <form method="POST" action="/operations/{{ op.db_id }}/status" style="display:inline;">
+                                    <input type="hidden" name="new_status" value="completed">
+                                    <button type="submit" class="status-btn completed {% if op.raw_status == 'completed' %}active-status{% endif %}">✅ Завершить</button>
+                                </form>
+                                <form method="POST" action="/operations/{{ op.db_id }}/status" style="display:inline;">
+                                    <input type="hidden" name="new_status" value="cancelled">
+                                    <button type="submit" class="status-btn cancelled {% if op.raw_status == 'cancelled' %}active-status{% endif %}">✗ Отменить</button>
+                                </form>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+
+                    {% if has_more %}
+                    <div style="text-align:center;margin-top:24px;">
+                        <a href="/dashboard?tab=operations&operation_type={{ operation_type }}&status={{ status }}&page={{ current_page + 1 }}"
+                           class="btn" style="background:linear-gradient(135deg,#667eea,#764ba2);color:white;padding:13px 40px;display:inline-block;text-decoration:none;border-radius:10px;font-weight:600;">
+                            ↓ Загрузить ещё
+                        </a>
+                    </div>
+                    {% else %}
+                    <div style="text-align:center;margin-top:20px;color:#aaa;font-size:14px;padding:10px;">
+                        ✓ Все операции загружены ({{ operations|length }} шт.)
+                    </div>
+                    {% endif %}
+                {% else %}
+                <div style="text-align:center;padding:60px 20px;color:#888;">
+                    <div style="font-size:48px;margin-bottom:12px;">📭</div>
+                    <p style="font-size:16px;">Операций не найдено</p>
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if current_tab == 'actions' %}
+            <div class="actions-grid">
+                <a href="/acceptance" class="action-card" style="text-decoration:none;">
+                    <div class="action-icon blue">📥</div>
+                    <h4>Приемка товара</h4>
+                    <p>Добавить новое поступление</p>
+                    <span class="action-link" style="color:#667eea;">Перейти →</span>
+                </a>
+                <a href="/shipment" class="action-card" style="text-decoration:none;">
+                    <div class="action-icon green">📤</div>
+                    <h4>Отгрузка</h4>
+                    <p>Оформить отправку товара</p>
+                    <span class="action-link" style="color:#34a853;">Перейти →</span>
+                </a>
+                <a href="/movement" class="action-card" style="text-decoration:none;">
+                    <div class="action-icon purple">🔄</div>
+                    <h4>Перемещение</h4>
+                    <p>Переместить между зонами</p>
+                    <span class="action-link" style="color:#a855f7;">Перейти →</span>
+                </a>
+                <a href="/inventory" class="action-card" style="text-decoration:none;">
+                    <div class="action-icon orange">📋</div>
+                    <h4>Инвентаризация</h4>
+                    <p>Провести учет остатков</p>
+                    <span class="action-link" style="color:#fb923c;">Перейти →</span>
+                </a>
+                <a href="/reports" class="action-card" style="text-decoration:none;">
+                    <div class="action-icon indigo">📊</div>
+                    <h4>Отчёты</h4>
+                    <p>Экспорт данных в XLSX, PDF, CSV и другие форматы</p>
+                    <span class="action-link" style="color:#667eea;">Перейти →</span>
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+    function toggleFilter() {
+        const p = document.getElementById('filter-panel');
+        p.style.display = p.style.display === 'none' ? 'block' : 'none';
+    }
+    {% if operation_type != 'all' or status != 'all' %}
+    document.getElementById('filter-panel').style.display = 'block';
+    {% endif %}
+    </script>
+</body>
+</html>
